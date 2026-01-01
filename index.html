@@ -10,7 +10,7 @@
   <div class="container">
     <header>
       <h1>Instagram Ready</h1>
-      <p class="subtitle">Add black borders to make images square (1:1)</p>
+      <p class="subtitle">Add borders to make images perfect for Instagram</p>
     </header>
 
     <div class="upload-zone" id="uploadZone">
@@ -23,7 +23,15 @@
     <!-- Global Settings -->
     <div class="settings">
       <label class="setting-item">
-        <span>Border Color</span>
+        <span>Ratio</span>
+        <select id="aspectRatio" class="select-input">
+          <option value="1:1">1:1 Square</option>
+          <option value="4:5">4:5 Portrait</option>
+          <option value="9:16">9:16 Story</option>
+        </select>
+      </label>
+      <label class="setting-item">
+        <span>Border</span>
         <input type="color" id="borderColor" value="#000000">
       </label>
     </div>
@@ -59,12 +67,14 @@
       </div>
 
       <div class="editor-controls">
-        <!-- Rotate -->
+        <!-- Rotate & Flip -->
         <div class="control-group">
-          <span class="control-label">Rotate</span>
+          <span class="control-label">Transform</span>
           <div class="control-buttons">
             <button class="ctrl-btn" id="rotateLeft" title="Rotate Left">&#8630;</button>
             <button class="ctrl-btn" id="rotateRight" title="Rotate Right">&#8631;</button>
+            <button class="ctrl-btn" id="flipH" title="Flip Horizontal">&#8596;</button>
+            <button class="ctrl-btn" id="flipV" title="Flip Vertical">&#8597;</button>
           </div>
         </div>
 

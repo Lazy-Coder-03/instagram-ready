@@ -7,6 +7,7 @@ const clearAllBtn = document.getElementById('clearAll');
 const processing = document.getElementById('processing');
 const stats = document.getElementById('stats');
 const borderColorInput = document.getElementById('borderColor');
+const aspectRatioSelect = document.getElementById('aspectRatio');
 
 // Editor Elements
 const editorModal = document.getElementById('editorModal');
@@ -17,11 +18,20 @@ const editorReset = document.getElementById('editorReset');
 const editorApply = document.getElementById('editorApply');
 const rotateLeftBtn = document.getElementById('rotateLeft');
 const rotateRightBtn = document.getElementById('rotateRight');
+const flipHBtn = document.getElementById('flipH');
+const flipVBtn = document.getElementById('flipV');
 const zoomSlider = document.getElementById('zoomSlider');
+
+// Aspect ratio definitions
+const ASPECT_RATIOS = {
+  '1:1': { width: 1, height: 1 },
+  '4:5': { width: 4, height: 5 },
+  '9:16': { width: 9, height: 16 }
+};
 
 // State
 let processedImages = [];
-let originalImages = []; // Store original image data for editing
+let originalImages = [];
 
 // Editor State
 let currentEditIndex = -1;
@@ -29,7 +39,9 @@ let editorState = {
   rotation: 0,
   zoom: 100,
   offsetX: 0,
-  offsetY: 0
+  offsetY: 0,
+  flipH: false,
+  flipV: false
 };
 let isDragging = false;
 let dragStart = { x: 0, y: 0 };
@@ -82,6 +94,16 @@ function setupEditor() {
 
   rotateLeftBtn.addEventListener('click', () => rotate(-90));
   rotateRightBtn.addEventListener('click', () => rotate(90));
+
+  flipHBtn.addEventListener('click', () => {
+    editorState.flipH = !editorState.flipH;
+    renderEditorCanvas();
+  });
+
+  flipVBtn.addEventListener('click', () => {
+    editorState.flipV = !editorState.flipV;
+    renderEditorCanvas();
+  });
 
   zoomSlider.addEventListener('input', (e) => {
     editorState.zoom = parseInt(e.target.value);
@@ -153,8 +175,31 @@ function getDefaultEditorState() {
     rotation: 0,
     zoom: 100,
     offsetX: 0,
-    offsetY: 0
+    offsetY: 0,
+    flipH: false,
+    flipV: false
   };
+}
+
+// Get canvas dimensions based on aspect ratio and image
+function getCanvasDimensions(imgWidth, imgHeight) {
+  const ratio = ASPECT_RATIOS[aspectRatioSelect.value];
+  const targetRatio = ratio.width / ratio.height;
+  const imgRatio = imgWidth / imgHeight;
+
+  let canvasWidth, canvasHeight;
+
+  if (imgRatio > targetRatio) {
+    // Image is wider than target ratio
+    canvasWidth = imgWidth;
+    canvasHeight = imgWidth / targetRatio;
+  } else {
+    // Image is taller than target ratio
+    canvasHeight = imgHeight;
+    canvasWidth = imgHeight * targetRatio;
+  }
+
+  return { width: Math.round(canvasWidth), height: Math.round(canvasHeight) };
 }
 
 // Process image with editor state
@@ -165,32 +210,36 @@ function processImage(originalData, state) {
     const imgWidth = isRotated ? img.height : img.width;
     const imgHeight = isRotated ? img.width : img.height;
 
-    const size = Math.max(imgWidth, imgHeight);
+    const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions(imgWidth, imgHeight);
+
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
 
     const ctx = canvas.getContext('2d');
 
     // Fill with border color
     ctx.fillStyle = borderColorInput.value;
-    ctx.fillRect(0, 0, size, size);
-
-    // Calculate zoom and position
-    const scale = state.zoom / 100;
-    const scaledWidth = imgWidth * scale;
-    const scaledHeight = imgHeight * scale;
-
-    // Center position with offset
-    const x = (size - scaledWidth) / 2 + state.offsetX;
-    const y = (size - scaledHeight) / 2 + state.offsetY;
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
     // Apply transformations
+    const scale = state.zoom / 100;
+
     ctx.save();
-    ctx.translate(size / 2, size / 2);
+    ctx.translate(canvasWidth / 2, canvasHeight / 2);
+
+    // Apply flips
+    const scaleX = state.flipH ? -1 : 1;
+    const scaleY = state.flipV ? -1 : 1;
+    ctx.scale(scaleX, scaleY);
+
     ctx.rotate((state.rotation * Math.PI) / 180);
     ctx.scale(scale, scale);
-    ctx.drawImage(img, -img.width / 2 + state.offsetX / scale, -img.height / 2 + state.offsetY / scale);
+    ctx.drawImage(
+      img,
+      -img.width / 2 + state.offsetX / scale,
+      -img.height / 2 + state.offsetY / scale
+    );
     ctx.restore();
 
     canvas.toBlob((blob) => {
@@ -206,7 +255,8 @@ function processImage(originalData, state) {
 // Generate output filename
 function generateFileName(originalName) {
   const baseName = originalName.replace(/\.[^.]+$/, '');
-  return `${baseName}_square.jpg`;
+  const ratio = aspectRatioSelect.value.replace(':', 'x');
+  return `${baseName}_${ratio}.jpg`;
 }
 
 // Show/hide processing overlay
@@ -282,26 +332,34 @@ function renderEditorCanvas() {
   const imgWidth = isRotated ? img.height : img.width;
   const imgHeight = isRotated ? img.width : img.height;
 
-  const size = Math.max(imgWidth, imgHeight);
+  const { width: canvasWidth, height: canvasHeight } = getCanvasDimensions(imgWidth, imgHeight);
 
   // Set canvas size (limited for display)
-  const displaySize = Math.min(300, size);
-  const ratio = displaySize / size;
+  const maxDisplaySize = 300;
+  const displayRatio = Math.min(maxDisplaySize / canvasWidth, maxDisplaySize / canvasHeight);
+  const displayWidth = canvasWidth * displayRatio;
+  const displayHeight = canvasHeight * displayRatio;
 
-  editorCanvas.width = displaySize;
-  editorCanvas.height = displaySize;
+  editorCanvas.width = displayWidth;
+  editorCanvas.height = displayHeight;
 
   const ctx = editorCanvas.getContext('2d');
 
   // Fill background
   ctx.fillStyle = borderColorInput.value;
-  ctx.fillRect(0, 0, displaySize, displaySize);
+  ctx.fillRect(0, 0, displayWidth, displayHeight);
 
   // Apply transformations
-  const scale = (editorState.zoom / 100) * ratio;
+  const scale = (editorState.zoom / 100) * displayRatio;
 
   ctx.save();
-  ctx.translate(displaySize / 2, displaySize / 2);
+  ctx.translate(displayWidth / 2, displayHeight / 2);
+
+  // Apply flips
+  const scaleX = editorState.flipH ? -1 : 1;
+  const scaleY = editorState.flipV ? -1 : 1;
+  ctx.scale(scaleX, scaleY);
+
   ctx.rotate((editorState.rotation * Math.PI) / 180);
   ctx.scale(scale, scale);
   ctx.drawImage(

@@ -118,6 +118,25 @@ h1 {
   border: 1px solid #333;
 }
 
+.select-input {
+  background: #222;
+  color: #fff;
+  border: 1px solid #333;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.select-input:hover {
+  border-color: #444;
+}
+
+.select-input:focus {
+  border-color: #666;
+}
+
 /* Action Buttons */
 .actions {
   display: flex;
