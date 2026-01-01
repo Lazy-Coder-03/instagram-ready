@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Instagram Ready - Square Image Converter</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Instagram Ready</h1>
+      <p class="subtitle">Add black borders to make images square (1:1)</p>
+    </header>
+
+    <div class="upload-zone" id="uploadZone">
+      <div class="upload-icon">+</div>
+      <p class="upload-text">Drag & drop images or tap to select</p>
+      <button class="upload-btn">Select Images</button>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+
+    <div class="actions">
+      <button class="action-btn download-all" id="downloadAll" disabled>Download All</button>
+      <button class="action-btn clear-all" id="clearAll" disabled>Clear</button>
+    </div>
+
+    <p class="stats" id="stats"></p>
+
+    <div class="gallery" id="gallery">
+      <div class="empty-state">No images yet</div>
+    </div>
+  </div>
+
+  <div class="processing hidden" id="processing">
+    <div class="spinner"></div>
+    <p>Processing images...</p>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
