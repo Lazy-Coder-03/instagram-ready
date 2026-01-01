@@ -6,14 +6,40 @@ const downloadAllBtn = document.getElementById('downloadAll');
 const clearAllBtn = document.getElementById('clearAll');
 const processing = document.getElementById('processing');
 const stats = document.getElementById('stats');
+const borderColorInput = document.getElementById('borderColor');
+
+// Editor Elements
+const editorModal = document.getElementById('editorModal');
+const editorCanvas = document.getElementById('editorCanvas');
+const editorClose = document.getElementById('editorClose');
+const editorCancel = document.getElementById('editorCancel');
+const editorReset = document.getElementById('editorReset');
+const editorApply = document.getElementById('editorApply');
+const rotateLeftBtn = document.getElementById('rotateLeft');
+const rotateRightBtn = document.getElementById('rotateRight');
+const zoomSlider = document.getElementById('zoomSlider');
 
 // State
 let processedImages = [];
+let originalImages = []; // Store original image data for editing
+
+// Editor State
+let currentEditIndex = -1;
+let editorState = {
+  rotation: 0,
+  zoom: 100,
+  offsetX: 0,
+  offsetY: 0
+};
+let isDragging = false;
+let dragStart = { x: 0, y: 0 };
+let currentOriginalImage = null;
 
 // Initialize
 function init() {
   setupUploadZone();
   setupButtons();
+  setupEditor();
 }
 
 // Setup upload zone events
@@ -47,6 +73,33 @@ function setupButtons() {
   clearAllBtn.addEventListener('click', clearAll);
 }
 
+// Setup editor events
+function setupEditor() {
+  editorClose.addEventListener('click', closeEditor);
+  editorCancel.addEventListener('click', closeEditor);
+  editorReset.addEventListener('click', resetEditor);
+  editorApply.addEventListener('click', applyEdits);
+
+  rotateLeftBtn.addEventListener('click', () => rotate(-90));
+  rotateRightBtn.addEventListener('click', () => rotate(90));
+
+  zoomSlider.addEventListener('input', (e) => {
+    editorState.zoom = parseInt(e.target.value);
+    renderEditorCanvas();
+  });
+
+  // Mouse events for dragging
+  editorCanvas.addEventListener('mousedown', startDrag);
+  editorCanvas.addEventListener('mousemove', drag);
+  editorCanvas.addEventListener('mouseup', endDrag);
+  editorCanvas.addEventListener('mouseleave', endDrag);
+
+  // Touch events for mobile
+  editorCanvas.addEventListener('touchstart', startDragTouch, { passive: false });
+  editorCanvas.addEventListener('touchmove', dragTouch, { passive: false });
+  editorCanvas.addEventListener('touchend', endDrag);
+}
+
 // Handle file selection
 async function handleFiles(files) {
   const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
@@ -56,7 +109,10 @@ async function handleFiles(files) {
 
   for (const file of imageFiles) {
     try {
-      const result = await processImage(file);
+      const originalData = await loadImageData(file);
+      originalImages.push(originalData);
+
+      const result = await processImage(originalData, getDefaultEditorState());
       processedImages.push(result);
     } catch (err) {
       console.error('Failed to process:', file.name, err);
@@ -67,46 +123,83 @@ async function handleFiles(files) {
   renderGallery();
 }
 
-// Process single image - add black borders to make square
-function processImage(file) {
+// Load image data from file
+function loadImageData(file) {
   return new Promise((resolve, reject) => {
-    const img = new Image();
     const reader = new FileReader();
-
     reader.onload = (e) => {
+      const img = new Image();
       img.onload = () => {
-        const size = Math.max(img.width, img.height);
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-
-        const ctx = canvas.getContext('2d');
-
-        // Fill with black background
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, size, size);
-
-        // Center the image
-        const x = (size - img.width) / 2;
-        const y = (size - img.height) / 2;
-        ctx.drawImage(img, x, y);
-
-        // Convert to blob
-        canvas.toBlob((blob) => {
-          resolve({
-            name: generateFileName(file.name),
-            blob: blob,
-            url: URL.createObjectURL(blob)
-          });
-        }, 'image/jpeg', 0.92);
+        resolve({
+          name: file.name,
+          dataUrl: e.target.result,
+          width: img.width,
+          height: img.height,
+          image: img,
+          editorState: getDefaultEditorState()
+        });
       };
-
       img.onerror = reject;
       img.src = e.target.result;
     };
-
     reader.onerror = reject;
     reader.readAsDataURL(file);
+  });
+}
+
+// Get default editor state
+function getDefaultEditorState() {
+  return {
+    rotation: 0,
+    zoom: 100,
+    offsetX: 0,
+    offsetY: 0
+  };
+}
+
+// Process image with editor state
+function processImage(originalData, state) {
+  return new Promise((resolve) => {
+    const img = originalData.image;
+    const isRotated = state.rotation % 180 !== 0;
+    const imgWidth = isRotated ? img.height : img.width;
+    const imgHeight = isRotated ? img.width : img.height;
+
+    const size = Math.max(imgWidth, imgHeight);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+
+    const ctx = canvas.getContext('2d');
+
+    // Fill with border color
+    ctx.fillStyle = borderColorInput.value;
+    ctx.fillRect(0, 0, size, size);
+
+    // Calculate zoom and position
+    const scale = state.zoom / 100;
+    const scaledWidth = imgWidth * scale;
+    const scaledHeight = imgHeight * scale;
+
+    // Center position with offset
+    const x = (size - scaledWidth) / 2 + state.offsetX;
+    const y = (size - scaledHeight) / 2 + state.offsetY;
+
+    // Apply transformations
+    ctx.save();
+    ctx.translate(size / 2, size / 2);
+    ctx.rotate((state.rotation * Math.PI) / 180);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, -img.width / 2 + state.offsetX / scale, -img.height / 2 + state.offsetY / scale);
+    ctx.restore();
+
+    canvas.toBlob((blob) => {
+      resolve({
+        name: generateFileName(originalData.name),
+        blob: blob,
+        url: URL.createObjectURL(blob)
+      });
+    }, 'image/jpeg', 0.92);
   });
 }
 
@@ -125,16 +218,13 @@ function showProcessing(show) {
 function renderGallery() {
   const hasImages = processedImages.length > 0;
 
-  // Update button states
   downloadAllBtn.disabled = !hasImages;
   clearAllBtn.disabled = !hasImages;
 
-  // Update stats
   stats.textContent = hasImages
     ? `${processedImages.length} image${processedImages.length > 1 ? 's' : ''} ready`
     : '';
 
-  // Render gallery content
   if (!hasImages) {
     gallery.innerHTML = '<div class="empty-state">No images yet</div>';
     return;
@@ -142,11 +232,146 @@ function renderGallery() {
 
   gallery.innerHTML = processedImages.map((img, i) => `
     <div class="image-card" data-index="${i}">
-      <img src="${img.url}" alt="${img.name}">
-      <button class="remove-single" onclick="removeImage(${i})" title="Remove">&#215;</button>
-      <button class="download-single" onclick="downloadImage(${i})" title="Download">&#8595;</button>
+      <img src="${img.url}" alt="${img.name}" onclick="openEditor(${i})">
+      <div class="edit-hint" onclick="openEditor(${i})">Tap to edit</div>
+      <button class="remove-single" onclick="event.stopPropagation(); removeImage(${i})" title="Remove">&#215;</button>
+      <button class="download-single" onclick="event.stopPropagation(); downloadImage(${i})" title="Download">&#8595;</button>
     </div>
   `).join('');
+}
+
+// Open editor for image
+function openEditor(index) {
+  currentEditIndex = index;
+  currentOriginalImage = originalImages[index];
+  editorState = { ...currentOriginalImage.editorState };
+
+  zoomSlider.value = editorState.zoom;
+  editorModal.classList.remove('hidden');
+  renderEditorCanvas();
+}
+
+// Close editor
+function closeEditor() {
+  editorModal.classList.add('hidden');
+  currentEditIndex = -1;
+  currentOriginalImage = null;
+}
+
+// Reset editor to defaults
+function resetEditor() {
+  editorState = getDefaultEditorState();
+  zoomSlider.value = 100;
+  renderEditorCanvas();
+}
+
+// Rotate image
+function rotate(degrees) {
+  editorState.rotation = (editorState.rotation + degrees + 360) % 360;
+  editorState.offsetX = 0;
+  editorState.offsetY = 0;
+  renderEditorCanvas();
+}
+
+// Render editor canvas
+function renderEditorCanvas() {
+  if (!currentOriginalImage) return;
+
+  const img = currentOriginalImage.image;
+  const isRotated = editorState.rotation % 180 !== 0;
+  const imgWidth = isRotated ? img.height : img.width;
+  const imgHeight = isRotated ? img.width : img.height;
+
+  const size = Math.max(imgWidth, imgHeight);
+
+  // Set canvas size (limited for display)
+  const displaySize = Math.min(300, size);
+  const ratio = displaySize / size;
+
+  editorCanvas.width = displaySize;
+  editorCanvas.height = displaySize;
+
+  const ctx = editorCanvas.getContext('2d');
+
+  // Fill background
+  ctx.fillStyle = borderColorInput.value;
+  ctx.fillRect(0, 0, displaySize, displaySize);
+
+  // Apply transformations
+  const scale = (editorState.zoom / 100) * ratio;
+
+  ctx.save();
+  ctx.translate(displaySize / 2, displaySize / 2);
+  ctx.rotate((editorState.rotation * Math.PI) / 180);
+  ctx.scale(scale, scale);
+  ctx.drawImage(
+    img,
+    -img.width / 2 + editorState.offsetX / (editorState.zoom / 100),
+    -img.height / 2 + editorState.offsetY / (editorState.zoom / 100)
+  );
+  ctx.restore();
+}
+
+// Drag handlers
+function startDrag(e) {
+  isDragging = true;
+  dragStart = { x: e.clientX, y: e.clientY };
+}
+
+function startDragTouch(e) {
+  e.preventDefault();
+  isDragging = true;
+  dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+}
+
+function drag(e) {
+  if (!isDragging) return;
+
+  const dx = e.clientX - dragStart.x;
+  const dy = e.clientY - dragStart.y;
+
+  editorState.offsetX += dx;
+  editorState.offsetY += dy;
+
+  dragStart = { x: e.clientX, y: e.clientY };
+  renderEditorCanvas();
+}
+
+function dragTouch(e) {
+  if (!isDragging) return;
+  e.preventDefault();
+
+  const dx = e.touches[0].clientX - dragStart.x;
+  const dy = e.touches[0].clientY - dragStart.y;
+
+  editorState.offsetX += dx;
+  editorState.offsetY += dy;
+
+  dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  renderEditorCanvas();
+}
+
+function endDrag() {
+  isDragging = false;
+}
+
+// Apply edits
+async function applyEdits() {
+  if (currentEditIndex < 0 || !currentOriginalImage) return;
+
+  showProcessing(true);
+
+  // Save editor state to original
+  originalImages[currentEditIndex].editorState = { ...editorState };
+
+  // Reprocess image
+  URL.revokeObjectURL(processedImages[currentEditIndex].url);
+  const result = await processImage(currentOriginalImage, editorState);
+  processedImages[currentEditIndex] = result;
+
+  showProcessing(false);
+  closeEditor();
+  renderGallery();
 }
 
 // Download single image
@@ -162,6 +387,7 @@ function downloadImage(index) {
 function removeImage(index) {
   URL.revokeObjectURL(processedImages[index].url);
   processedImages.splice(index, 1);
+  originalImages.splice(index, 1);
   renderGallery();
 }
 
@@ -169,7 +395,6 @@ function removeImage(index) {
 async function downloadAll() {
   for (let i = 0; i < processedImages.length; i++) {
     downloadImage(i);
-    // Small delay between downloads to prevent browser blocking
     await new Promise(resolve => setTimeout(resolve, 300));
   }
 }
@@ -178,6 +403,7 @@ async function downloadAll() {
 function clearAll() {
   processedImages.forEach(img => URL.revokeObjectURL(img.url));
   processedImages = [];
+  originalImages = [];
   renderGallery();
 }
 

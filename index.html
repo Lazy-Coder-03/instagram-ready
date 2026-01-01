@@ -20,6 +20,14 @@
       <input type="file" id="fileInput" accept="image/*" multiple>
     </div>
 
+    <!-- Global Settings -->
+    <div class="settings">
+      <label class="setting-item">
+        <span>Border Color</span>
+        <input type="color" id="borderColor" value="#000000">
+      </label>
+    </div>
+
     <div class="actions">
       <button class="action-btn download-all" id="downloadAll" disabled>Download All</button>
       <button class="action-btn clear-all" id="clearAll" disabled>Clear</button>
@@ -32,9 +40,50 @@
     </div>
   </div>
 
+  <!-- Processing Overlay -->
   <div class="processing hidden" id="processing">
     <div class="spinner"></div>
     <p>Processing images...</p>
+  </div>
+
+  <!-- Image Editor Modal -->
+  <div class="editor-modal hidden" id="editorModal">
+    <div class="editor-container">
+      <div class="editor-header">
+        <h2>Edit Image</h2>
+        <button class="editor-close" id="editorClose">&times;</button>
+      </div>
+
+      <div class="editor-canvas-wrapper">
+        <canvas id="editorCanvas"></canvas>
+      </div>
+
+      <div class="editor-controls">
+        <!-- Rotate -->
+        <div class="control-group">
+          <span class="control-label">Rotate</span>
+          <div class="control-buttons">
+            <button class="ctrl-btn" id="rotateLeft" title="Rotate Left">&#8630;</button>
+            <button class="ctrl-btn" id="rotateRight" title="Rotate Right">&#8631;</button>
+          </div>
+        </div>
+
+        <!-- Zoom -->
+        <div class="control-group">
+          <span class="control-label">Zoom</span>
+          <input type="range" id="zoomSlider" min="100" max="300" value="100" class="slider">
+        </div>
+
+        <!-- Position hint -->
+        <p class="control-hint">Drag image to reposition</p>
+      </div>
+
+      <div class="editor-actions">
+        <button class="editor-btn cancel" id="editorCancel">Cancel</button>
+        <button class="editor-btn reset" id="editorReset">Reset</button>
+        <button class="editor-btn apply" id="editorApply">Apply</button>
+      </div>
+    </div>
   </div>
 
   <script src="script.js"></script>
