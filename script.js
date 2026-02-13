@@ -8,6 +8,7 @@ const processing = document.getElementById('processing');
 const stats = document.getElementById('stats');
 const borderColorInput = document.getElementById('borderColor');
 const aspectRatioSelect = document.getElementById('aspectRatio');
+const outputFormatSelect = document.getElementById('outputFormat');
 
 // Editor Elements
 const editorModal = document.getElementById('editorModal');
@@ -47,10 +48,34 @@ let isDragging = false;
 let dragStart = { x: 0, y: 0 };
 let currentOriginalImage = null;
 
+// Setup global settings events
+function setupSettings() {
+  const inputs = [borderColorInput, aspectRatioSelect, outputFormatSelect];
+  
+  inputs.forEach(input => {
+    input.addEventListener('change', async () => {
+      if (originalImages.length === 0) return;
+      
+      showProcessing(true);
+      
+      // Reprocess all images with new settings
+      for (let i = 0; i < originalImages.length; i++) {
+        URL.revokeObjectURL(processedImages[i].url);
+        const result = await processImage(originalImages[i], originalImages[i].editorState);
+        processedImages[i] = result;
+      }
+      
+      showProcessing(false);
+      renderGallery();
+    });
+  });
+}
+
 // Initialize
 function init() {
   setupUploadZone();
   setupButtons();
+  setupSettings();
   setupEditor();
 }
 
@@ -154,6 +179,7 @@ function loadImageData(file) {
       img.onload = () => {
         resolve({
           name: file.name,
+          type: file.type, // Store original mime type
           dataUrl: e.target.result,
           width: img.width,
           height: img.height,
@@ -242,21 +268,31 @@ function processImage(originalData, state) {
     );
     ctx.restore();
 
+    const targetFormat = outputFormatSelect.value === 'auto' ? originalData.type : outputFormatSelect.value;
+    const quality = targetFormat === 'image/jpeg' || targetFormat === 'image/webp' ? 1.0 : undefined; // Use max quality for lossy formats
+
     canvas.toBlob((blob) => {
       resolve({
-        name: generateFileName(originalData.name),
+        name: generateFileName(originalData.name, targetFormat),
         blob: blob,
         url: URL.createObjectURL(blob)
       });
-    }, 'image/jpeg', 0.92);
+    }, targetFormat, quality);
   });
 }
 
 // Generate output filename
-function generateFileName(originalName) {
+function generateFileName(originalName, mimeType) {
   const baseName = originalName.replace(/\.[^.]+$/, '');
   const ratio = aspectRatioSelect.value.replace(':', 'x');
-  return `${baseName}_${ratio}.jpg`;
+  
+  let ext;
+  if (mimeType === 'image/jpeg') ext = 'jpg';
+  else if (mimeType === 'image/png') ext = 'png';
+  else if (mimeType === 'image/webp') ext = 'webp';
+  else ext = 'jpg'; // Default fallback
+
+  return `${baseName}_${ratio}.${ext}`;
 }
 
 // Show/hide processing overlay
